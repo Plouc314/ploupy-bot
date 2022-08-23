@@ -1,0 +1,6 @@
+{
+    "python.analysis.extraPaths": [
+        "../ploupy-python-sdk"
+      ],
+      "python.formatting.provider": "black",
+}

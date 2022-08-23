@@ -1,0 +1,2 @@
+ploupy-sdk
+python-dotenv
