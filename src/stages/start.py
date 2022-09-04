@@ -1,9 +1,9 @@
 import ploupy as pp
 
-from ..factory import build_expansion_factory, _get_build_expansion_factory_target
+from ..factory import FactoryMixin
 
 
-class StartStage(pp.BehaviourStage):
+class StartStage(FactoryMixin, pp.BehaviourStage):
     def __init__(self, dispatcher: pp.BehaviourDispatcher) -> None:
         super().__init__(dispatcher, "start")
 
@@ -12,16 +12,16 @@ class StartStage(pp.BehaviourStage):
         self._st_recall = False
 
     async def on_start(self) -> None:
-        self._first_target = _get_build_expansion_factory_target(self)
-        self._second_target = _get_build_expansion_factory_target(self)
+        self._first_target = self._get_build_expansion_factory_target()
+        self._second_target = self._get_build_expansion_factory_target()
 
-        await build_expansion_factory(self, target=self._first_target)
+        await self.build_expansion_factory(target=self._first_target)
 
     async def on_factory_build(self, factory: pp.Factory, player: pp.Player) -> None:
         if player is not self.player:
             return
 
-        await build_expansion_factory(self, target=self._second_target)
+        await self.build_expansion_factory(target=self._second_target)
 
         await self.set_current_stage("early")
 

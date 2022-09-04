@@ -1,57 +1,80 @@
+from __future__ import annotations
+
+from functools import wraps
 import random
 from typing import Callable
 
 import ploupy as pp
 
 
-def _get_build_expansion_factory_target(bhv: pp.Behaviour) -> pp.Tile:
-    tiles = bhv.map.get_unoccupied_tiles()
-    n_center = len(tiles) // 25
-    centers = pp.geometry.centers((tile.coord for tile in tiles), n_center)
+class FactoryMixin:
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.ongoing_factory_actions: list[str] = []
 
-    idx = random.randint(0, n_center - 1)
-    return bhv.map.get_tile(centers[idx])
+        self._wrap_action("build_expansion_factory")
+        self._wrap_action("build_economy_factory")
 
+    def _wrap_action(self, name: str):
+        func = getattr(self, name)
 
-async def build_expansion_factory(
-    bhv: pp.Behaviour,
-    target: pp.Tile | None = None,
-) -> None:
+        @wraps(func)
+        async def inner(*args, **kwargs):
+            self.ongoing_factory_actions.append(func.__name__)
+            await func(*args, **kwargs)
+            if func.__name__ in self.ongoing_factory_actions:
+                self.ongoing_factory_actions.remove(func.__name__)
 
-    if target is None:
-        target = _get_build_expansion_factory_target(bhv)
+        setattr(self, name, inner)
 
-    sorted_probes = sorted(
-        bhv.player.probes,
-        key=lambda p: pp.geometry.distance(p.pos, target.coord),
-    )
-    probes = sorted_probes[:7]
+    def _get_build_expansion_factory_target(
+        self: pp.Behaviour | "FactoryMixin",
+    ) -> pp.Tile:
+        tiles = self.map.get_unoccupied_tiles()
+        n_center = len(tiles) // 25
+        centers = pp.geometry.centers((tile.coord for tile in tiles), n_center)
 
-    await bhv.move_probes(probes, target.coord)
+        idx = random.randint(0, n_center - 1)
+        return self.map.get_tile(centers[idx])
 
-    await bhv.place_order(
-        pp.BuildFactoryOrder(
-            target,
-            name="build_expansion_factory",
-        ),
-    )
+    async def build_expansion_factory(
+        self: pp.Behaviour | "FactoryMixin",
+        target: pp.Tile | None = None,
+    ) -> None:
 
+        if target is None:
+            target = self._get_build_expansion_factory_target(self)
 
-async def build_economy_factory(
-    bhv: pp.Behaviour,
-    condition: Callable[[], bool] | None = None,
-) -> None:
-    poss_tiles = bhv.map.get_buildable_tiles(bhv.player)
-    center = pp.geometry.center([f.coord for f in bhv.player.factories])
-    build_tile = pp.geometry.furthest_tile(poss_tiles, center)
-
-    if condition is None:
-        condition = lambda: True
-
-    await bhv.place_order(
-        pp.BuildFactoryOrder(
-            build_tile,
-            on=condition,
-            name="build_economy_factory",
+        sorted_probes = sorted(
+            self.player.probes,
+            key=lambda p: pp.geometry.distance(p.pos, target.coord),
         )
-    )
+        probes = sorted_probes[:7]
+
+        await self.move_probes(probes, target.coord)
+
+        await self.place_order(
+            pp.BuildFactoryOrder(
+                target,
+                name="build_expansion_factory",
+            ),
+        )
+
+    async def build_economy_factory(
+        self: pp.Behaviour | "FactoryMixin",
+        condition: Callable[[], bool] | None = None,
+    ) -> None:
+        poss_tiles = self.map.get_buildable_tiles(self.player)
+        center = pp.geometry.center([f.coord for f in self.player.factories])
+        build_tile = pp.geometry.furthest_tile(poss_tiles, center)
+
+        if condition is None:
+            condition = lambda: True
+
+        await self.place_order(
+            pp.BuildFactoryOrder(
+                build_tile,
+                on=condition,
+                name="build_economy_factory",
+            )
+        )
