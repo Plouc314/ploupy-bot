@@ -73,7 +73,7 @@ class ProbeMixin:
         n_probes = int(len(sorted_probes) * probe_ratio)
         attack_probes = sorted_probes[:n_probes]
 
-        while True:
+        for i in range(3):  # regroup probes 3 times maximum
             try:
                 await self.move_probes(attack_probes, min_tile.coord)
             except pp.ActionFailedException:
@@ -102,3 +102,6 @@ class ProbeMixin:
             await pp.sleep(dist / self.config.probe_speed)
 
         await self.probes_attack(attack_probes)
+
+        # sleep a little to give time to attack
+        await pp.sleep(2)

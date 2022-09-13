@@ -65,15 +65,14 @@ class FactoryMixin:
         condition: Callable[[], bool] | None = None,
     ) -> None:
         poss_tiles = self.map.get_buildable_tiles(self.player)
-        center = pp.geometry.center([f.coord for f in self.player.factories])
-        build_tile = pp.geometry.furthest_tile(poss_tiles, center)
+        tile = random.choice(list(poss_tiles))
 
         if condition is None:
             condition = lambda: True
 
         await self.place_order(
             pp.BuildFactoryOrder(
-                build_tile,
+                tile,
                 on=condition,
                 name="build_economy_factory",
             )

@@ -11,7 +11,9 @@ class MidStage(ProbeMixin, FactoryMixin, TurretMixin, pp.BehaviourStage):
 
     def _build_condition(self) -> bool:
         min_money = self.config.factory_price + 2 * self.config.turret_price
-        return self.player.money >= min_money and self.player.income > 0
+        return self.player.money >= min_money and (
+            self.player.income > 0 or self.player.money > 1000
+        )
 
     async def on_stage(self) -> None:
         await self.spread_probes()
@@ -52,13 +54,10 @@ class MidStage(ProbeMixin, FactoryMixin, TurretMixin, pp.BehaviourStage):
 
         eco_cond = self.player.money > 200 or self.player.income < 0
         action_cond = "perform_localised_attack" not in self.ongoing_probe_actions
+        probe_cond = (
+            len(self.player.probes)
+            >= 0.8 * len(self.player.factories) * self.player.factories[0].capacity
+        )
 
-        if (
-            eco_cond
-            and action_cond
-            and (
-                len(self.player.probes)
-                >= 0.8 * len(self.player.factories) * self.player.factories[0].capacity
-            )
-        ):
+        if eco_cond and action_cond and (self.player.money > 1000 or probe_cond):
             pp.start_background_task(self.perform_localised_attack, probe_ratio=0.7)
