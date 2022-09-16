@@ -1,3 +1,4 @@
+import random
 import ploupy as pp
 
 from ..probe import ProbeMixin
@@ -11,9 +12,29 @@ class MidStage(ProbeMixin, FactoryMixin, TurretMixin, pp.BehaviourStage):
 
     def _build_condition(self) -> bool:
         min_money = self.config.factory_price + 2 * self.config.turret_price
-        return self.player.money >= min_money and (
-            self.player.income > 0 or self.player.money > 1000
-        )
+        return self.player.money >= min_money and self.player.income > 10
+
+    def _get_random_acquirable_tech(self) -> pp.Techs | None:
+        types = ["factory", "turret", "probe"]
+        for tech in self.player.techs:
+            tech_type = tech.name.lower().split("_")[0]
+            if tech_type in types:
+                types.remove(tech_type)
+
+        techs = [t for t in pp.Techs]
+        random.shuffle(techs)
+        for tech in techs:
+            if tech.name.lower().split("_")[0] in types:
+                return tech
+        return None
+
+    async def on_income(self, money: int) -> None:
+        if self.player.money < 1000 or len(self.player.techs) == 3:
+            return
+
+        tech = self._get_random_acquirable_tech()
+        if tech is not None:
+            await self.place_order(pp.AcquireTechOrder(tech))
 
     async def on_stage(self) -> None:
         await self.spread_probes()
@@ -46,7 +67,7 @@ class MidStage(ProbeMixin, FactoryMixin, TurretMixin, pp.BehaviourStage):
         if attacked_player is not self.player:
             return
 
-        await self.build_defensive_turret(probes)
+        await self.build_defensive_turrets(probes)
 
     async def on_probe_build(self, probe: pp.Probe, player: pp.Player) -> None:
         if player is not self.player:

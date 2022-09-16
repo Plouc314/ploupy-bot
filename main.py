@@ -6,7 +6,7 @@ from src.behaviour import BotBehaviour
 
 load_dotenv()
 
-BOT_KEY = os.environ["PROD_BOT_KEY2"]
+BOT_KEY = os.environ["BOT_KEY2"]
 
 bot = ploupy.Bot(bot_key=BOT_KEY, behaviour_class=BotBehaviour)
 

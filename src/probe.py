@@ -3,9 +3,12 @@ from __future__ import annotations
 
 from functools import wraps
 import random
+import math
 
 import ploupy as pp
 import numpy as np
+
+from . import utils
 
 
 class ProbeMixin:
@@ -27,6 +30,44 @@ class ProbeMixin:
                 self.ongoing_probe_actions.remove(func.__name__)
 
         setattr(self, name, inner)
+
+    async def send_exploratory_group(
+        self: pp.Behaviour | "ProbeMixin", n_probes: int = 5
+    ):
+        tiles = self.map.get_unoccupied_tiles()
+
+        if len(tiles) <= 10:
+            return  # there is to few tiles for it to be useful
+
+        own_tiles = self.map.get_player_tiles(self.player)
+
+        # estimate chunk size with average factory territory size
+        chunk_size = len(own_tiles) / len(self.player.factories)
+
+        # estimate number of chunks of neutral tiles to split into
+        n_chunk = math.ceil(len(tiles) / chunk_size)
+
+        # get potential exploratory targets
+        centers = pp.geometry.centers([tile.coord for tile in tiles], n_center=n_chunk)
+        random.shuffle(centers)
+
+        # get target
+        target = None
+        for center in centers:
+            tile = self.map.get_tile(center)
+            if tile.owner is None:
+                target = tile
+                break
+
+        if target is None:
+            return  # no suitable target where found
+
+        probes = utils.get_closest_probes(self.player, target.coord, n_probes)
+
+        try:
+            await self.move_probes(probes, target.coord)
+        except pp.ActionFailedException:
+            pass
 
     async def spread_probes(self: pp.Behaviour | "ProbeMixin"):
         tiles = self.map.get_unoccupied_tiles()
@@ -66,14 +107,22 @@ class ProbeMixin:
         factory = opp.factories[min_idx]
 
         # select attacking probes
-        sorted_probes = sorted(
-            self.player.probes,
-            key=lambda p: pp.geometry.distance(p.pos, factory.coord),
-        )
-        n_probes = int(len(sorted_probes) * probe_ratio)
-        attack_probes = sorted_probes[:n_probes]
+        n_probes = int(len(self.player.probes) * probe_ratio)
+        attack_probes = utils.get_closest_probes(self.player, factory.coord, n_probes)
 
         for i in range(3):  # regroup probes 3 times maximum
+
+            # get rid of dead probes
+            attack_probes = [p for p in attack_probes if p.alive]
+
+            if len(attack_probes) == 0:
+                return  # abort
+
+            # wait that all probes fits in a small rectangle
+            rect = pp.geometry.wrapping_rectangle((p.pos for p in attack_probes))
+            if rect.width < 3 and rect.height < 3:
+                break
+
             try:
                 await self.move_probes(attack_probes, min_tile.coord)
             except pp.ActionFailedException:
@@ -83,9 +132,6 @@ class ProbeMixin:
             dist = pp.geometry.distance(cp, min_tile.coord)
 
             await pp.sleep(dist / self.config.probe_speed)
-
-            if dist < 3:
-                break
 
         target_tile = pp.geometry.closest_tile(
             own_tiles | self.map.get_unoccupied_tiles(), factory.coord

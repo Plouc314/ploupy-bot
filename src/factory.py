@@ -6,6 +6,8 @@ from typing import Callable
 
 import ploupy as pp
 
+from . import utils
+
 
 class FactoryMixin:
     def __init__(self, *args, **kwargs) -> None:
@@ -40,16 +42,14 @@ class FactoryMixin:
     async def build_expansion_factory(
         self: pp.Behaviour | "FactoryMixin",
         target: pp.Tile | None = None,
+        probes: list[pp.Probe] | None = None,
     ) -> None:
 
         if target is None:
             target = self._get_build_expansion_factory_target(self)
 
-        sorted_probes = sorted(
-            self.player.probes,
-            key=lambda p: pp.geometry.distance(p.pos, target.coord),
-        )
-        probes = sorted_probes[:7]
+        if probes is None:
+            probes = utils.get_closest_probes(self.player, target.coord, n_probes=7)
 
         await self.move_probes(probes, target.coord)
 

@@ -6,6 +6,7 @@ import random
 from typing import Callable
 
 import ploupy as pp
+import numpy as np
 
 
 class TurretMixin:
@@ -14,7 +15,7 @@ class TurretMixin:
         self.ongoing_turret_actions: list[str] = []
 
         self._wrap_action("build_aggressive_turret")
-        self._wrap_action("build_defensive_turret")
+        self._wrap_action("build_defensive_turrets")
 
     def _wrap_action(self, name: str):
         func = getattr(self, name)
@@ -62,27 +63,39 @@ class TurretMixin:
             )
         )
 
-    async def build_defensive_turret(
+    async def build_defensive_turrets(
         self: pp.Behaviour | "TurretMixin", attacking_probes: list[pp.Probe]
     ) -> None:
 
-        if len(attacking_probes) < 5:
-            return
+        n_turret = len(attacking_probes) // 5
 
-        target = pp.geometry.center([probe.target for probe in attacking_probes])
+        if n_turret == 0:
+            return
 
         tiles = self.map.get_buildable_tiles(self.player)
 
         if len(tiles) == 0:
             return
 
-        tile = pp.geometry.closest_tile(tiles, target)
+        origin = pp.geometry.center([probe.pos for probe in attacking_probes])
+        target = pp.geometry.center([probe.target for probe in attacking_probes])
 
-        await self.place_order(
-            pp.BuildTurretOrder(
-                tile,
-                with_timeout=2.0,
-                with_retry=False,
-                name="build_defensive_turret",
+        # in case the target is to close from the origin of the attack
+        # build the turret a bit further
+        if pp.geometry.distance(origin, target) < 3:
+            vect = target - origin
+            vect /= np.linalg.norm(vect)
+            target += vect * 2
+
+        for i in range(n_turret):
+            tile = pp.geometry.closest_tile(tiles, target)
+            tiles.remove(tile)
+
+            await self.place_order(
+                pp.BuildTurretOrder(
+                    tile,
+                    with_timeout=2.0,
+                    with_retry=False,
+                    name="build_defensive_turret",
+                )
             )
-        )
