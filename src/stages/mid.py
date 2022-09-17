@@ -10,9 +10,22 @@ class MidStage(ProbeMixin, FactoryMixin, TurretMixin, pp.BehaviourStage):
     def __init__(self, dispatcher: pp.BehaviourDispatcher) -> None:
         super().__init__(dispatcher, "mid")
 
-    def _build_condition(self) -> bool:
+    def _neutral_income(self) -> float:
+        return len(self.player.factories) * 5
+
+    def _build_factory_condition(self) -> bool:
         min_money = self.config.factory_price + 2 * self.config.turret_price
-        return self.player.money >= min_money and self.player.income > 10
+        min_income = self._neutral_income()
+        return self.player.money >= min_money and self.player.income > min_income
+
+    def _build_turret_condition(self) -> bool:
+        min_money = self.config.turret_price + 2 * self.config.turret_price
+        min_income = self._neutral_income()
+        return self.player.money >= min_money and self.player.income > min_income
+
+    def _is_still_enough_neutral_tiles(self) -> bool:
+        area = self.metadata.dim.x + self.metadata.dim.y
+        return len(self.map.get_unoccupied_tiles()) > 0.2 * area
 
     def _get_random_acquirable_tech(self) -> pp.Techs | None:
         types = ["factory", "turret", "probe"]
@@ -38,25 +51,30 @@ class MidStage(ProbeMixin, FactoryMixin, TurretMixin, pp.BehaviourStage):
 
     async def on_stage(self) -> None:
         await self.spread_probes()
-        await self.build_economy_factory(condition=self._build_condition)
+        await self.build_economy_factory(condition=self._build_factory_condition)
 
     async def on_factory_build(self, factory: pp.Factory, player: pp.Player) -> None:
         if player is not self.player:
             return
 
-        await self.build_aggressive_turret(condition=self._build_condition)
+        if self._is_still_enough_neutral_tiles():
+            await self.send_exploratory_group(
+                n_probes=int(0.2 * len(self.player.probes))
+            )
+
+        await self.build_aggressive_turret(condition=self._build_turret_condition)
 
     async def on_turret_build(self, turret: pp.Turret, player: pp.Player) -> None:
         if player is not self.player:
             return
 
-        await self.build_economy_factory(condition=self._build_condition)
+        await self.build_economy_factory(condition=self._build_factory_condition)
 
     async def on_order_fail(self, order: pp.Order) -> None:
         if order.name == "build_aggressive_turret":
-            await self.build_aggressive_turret(condition=self._build_condition)
+            await self.build_economy_factory(condition=self._build_factory_condition)
         if order.name == "build_economy_factory":
-            await self.build_economy_factory(condition=self._build_condition)
+            await self.build_aggressive_turret(condition=self._build_turret_condition)
 
     async def on_probes_attack(
         self,
@@ -73,7 +91,9 @@ class MidStage(ProbeMixin, FactoryMixin, TurretMixin, pp.BehaviourStage):
         if player is not self.player:
             return
 
-        eco_cond = self.player.money > 200 or self.player.income < 0
+        eco_cond = (
+            self.player.money > 200 or self.player.income < self._neutral_income()
+        )
         action_cond = "perform_localised_attack" not in self.ongoing_probe_actions
         probe_cond = (
             len(self.player.probes)
@@ -81,4 +101,4 @@ class MidStage(ProbeMixin, FactoryMixin, TurretMixin, pp.BehaviourStage):
         )
 
         if eco_cond and action_cond and (self.player.money > 1000 or probe_cond):
-            pp.start_background_task(self.perform_localised_attack, probe_ratio=0.7)
+            pp.start_background_task(self.perform_localised_attack, probe_ratio=0.8)

@@ -110,7 +110,7 @@ class ProbeMixin:
         n_probes = int(len(self.player.probes) * probe_ratio)
         attack_probes = utils.get_closest_probes(self.player, factory.coord, n_probes)
 
-        for i in range(3):  # regroup probes 3 times maximum
+        while True:
 
             # get rid of dead probes
             attack_probes = [p for p in attack_probes if p.alive]
@@ -128,10 +128,7 @@ class ProbeMixin:
             except pp.ActionFailedException:
                 return  # abort
 
-            cp = pp.geometry.center((p.pos for p in attack_probes))
-            dist = pp.geometry.distance(cp, min_tile.coord)
-
-            await pp.sleep(dist / self.config.probe_speed)
+            await pp.sleep(0.5)
 
         target_tile = pp.geometry.closest_tile(
             own_tiles | self.map.get_unoccupied_tiles(), factory.coord
@@ -145,7 +142,7 @@ class ProbeMixin:
             except pp.ActionFailedException:
                 return  # abort
 
-            await pp.sleep(dist / self.config.probe_speed)
+            await pp.sleep(0.8 * dist / self.config.probe_speed)
 
         await self.probes_attack(attack_probes)
 

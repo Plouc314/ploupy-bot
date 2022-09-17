@@ -46,7 +46,7 @@ class FactoryMixin:
     ) -> None:
 
         if target is None:
-            target = self._get_build_expansion_factory_target(self)
+            target = self._get_build_expansion_factory_target()
 
         if probes is None:
             probes = utils.get_closest_probes(self.player, target.coord, n_probes=7)
@@ -75,5 +75,6 @@ class FactoryMixin:
                 tile,
                 on=condition,
                 name="build_economy_factory",
+                with_timeout=30,
             )
         )

@@ -58,7 +58,7 @@ class TurretMixin:
             pp.BuildTurretOrder(
                 neighbour,
                 on=condition,
-                with_timeout=20,
+                with_timeout=15,
                 name="build_aggressive_turret",
             )
         )
